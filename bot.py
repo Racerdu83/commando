@@ -4,11 +4,10 @@ import os
 from discord.ext import commands
 
 TOKEN = os.getenv("TOKEN")
-CATEGORY_ID = int(os.getenv("CATEGORY_ID", "0"))  # Par défaut, 0 si non défini
+CATEGORY_ID = int(os.getenv("CATEGORY_ID", "0"))
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
 USER_ID = int(os.getenv("USER_ID", "0"))
 
-# Activer les intents
 intents = discord.Intents.default()
 intents.messages = True
 intents.guilds = True
@@ -18,12 +17,11 @@ intents.dm_messages = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Stocker les messages pour chaque ticket
 ticket_messages = {}
 
 class TicketView(discord.ui.View):
     def __init__(self, ticket_channel):
-        super().__init__(timeout=None)  # Garde les boutons actifs
+        super().__init__(timeout=None)
         self.ticket_channel = ticket_channel
 
     @discord.ui.button(label="Prendre en charge", style=discord.ButtonStyle.success, custom_id="take_ticket")
@@ -54,14 +52,13 @@ async def send_keep_alive_message():
         except Exception as e:
             print(f"⚠️ Impossible d'envoyer un message à {USER_ID}: {e}")
 
-        await asyncio.sleep(180)  # Attendre 3 minutes
+        await asyncio.sleep(180)
 
 @bot.event
 async def on_ready():
     print(f"✅ {bot.user.name} est connecté et surveille les tickets en temps réel !")
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="les tickets de Racer83"))
-
-    # Lancer la tâche asyncio pour garder le bot actif
+    
     bot.loop.create_task(send_keep_alive_message())
 
 async def update_ticket_log(ticket_channel, author, message_content):
