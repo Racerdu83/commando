@@ -1,11 +1,12 @@
 import discord
 import asyncio
+import os
 from discord.ext import commands
 
-TOKEN = "MTM0ODA2NTE0Nzg0Mjk5MDEyNA.Gwqndp.uECcpZJiPJ1zGVjauwlrc63OIAlz-2XLLwtsGY"
-CATEGORY_ID = 1346873527986552902  # ID de la catégorie des tickets
-CHANNEL_ID = 1346836457633087569  # ID du salon de gestion des tickets
-USER_ID = 1113853918045286491  # ID de l'utilisateur à qui envoyer le MP
+TOKEN = os.getenv("TOKEN")
+CATEGORY_ID = int(os.getenv("CATEGORY_ID", "0"))  # Par défaut, 0 si non défini
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
+USER_ID = int(os.getenv("USER_ID", "0"))
 
 # Activer les intents
 intents = discord.Intents.default()
