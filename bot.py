@@ -52,7 +52,7 @@ async def send_keep_alive_message():
         except Exception as e:
             print(f"⚠️ Impossible d'envoyer un message à {USER_ID}: {e}")
 
-        await asyncio.sleep(5)
+        await asyncio.sleep(0.5)
 
 @bot.event
 async def on_ready():
