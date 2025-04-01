@@ -67,13 +67,12 @@ async def unmute(ctx, member: discord.Member):
     else:
         await ctx.send(f"⚠️ {member.mention} n'est pas mute.")
 
-@bot.slash_command(name="config", description="Configurer la catégorie et le salon de contrôle du bot")
-@commands.has_permissions(administrator=True)
-async def config(ctx, category: discord.CategoryChannel, log_channel: discord.TextChannel):
+@bot.tree.command(name="config", description="Configurer la catégorie et le salon de contrôle du bot")
+async def config(interaction: discord.Interaction, category: discord.CategoryChannel, log_channel: discord.TextChannel):
     global CATEGORY_ID, CHANNEL_ID
     CATEGORY_ID = category.id
     CHANNEL_ID = log_channel.id
-    await ctx.send(f"✅ Configuration mise à jour !\n📂 Catégorie surveillée : {category.name}\n📢 Salon de contrôle : {log_channel.mention}")
+    await interaction.response.send_message(f"✅ Configuration mise à jour !\n📂 Catégorie surveillée : {category.name}\n📢 Salon de contrôle : {log_channel.mention}", ephemeral=True)
 
 async def send_status_message():
     await bot.wait_until_ready()
@@ -86,5 +85,10 @@ async def send_status_message():
 async def on_ready():
     print(f"✅ {bot.user.name} est connecté et prêt à administrer !")
     bot.loop.create_task(send_status_message())
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ {len(synced)} commandes slash synchronisées")
+    except Exception as e:
+        print(f"❌ Erreur de synchronisation des commandes : {e}")
 
 bot.run(TOKEN)
