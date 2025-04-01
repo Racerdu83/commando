@@ -1,134 +1,105 @@
 import discord
-import asyncio
 import os
 from discord.ext import commands
 
-TOKEN = os.getenv("TOKEN")
-CATEGORY_ID = int(os.getenv("CATEGORY_ID", "0"))
-CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
-USER_ID = int(os.getenv("USER_ID", "0"))
+TOKEN = os.getenv("Token")
+CATEGORY_ID = None  # ID de la catégorie des tickets (modifiable via /config)
+CHANNEL_ID = None  # ID du salon de gestion des tickets (modifiable via /config)
 
+# Activer les intents pour suivre les messages et les salons
 intents = discord.Intents.default()
 intents.messages = True
 intents.guilds = True
 intents.message_content = True
 intents.guild_messages = True
-intents.dm_messages = True
+intents.members = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="/", intents=intents)
 
-ticket_messages = {}
+# Stocker les messages pour chaque ticket
+ticket_messages = {}  # {ticket_id: (message_id, messages_list)}
+
+
+@bot.slash_command(name="config", description="Configurer le bot")
+async def config(ctx, category_id: int, channel_id: int):
+    global CATEGORY_ID, CHANNEL_ID
+    CATEGORY_ID = category_id
+    CHANNEL_ID = channel_id
+    await ctx.respond(f"✅ Configuration mise à jour !\nCatégorie des tickets : `{CATEGORY_ID}`\nSalon de gestion : `{CHANNEL_ID}`")
+
 
 class TicketView(discord.ui.View):
     def __init__(self, ticket_channel):
-        super().__init__(timeout=None)
+        super().__init__()
         self.ticket_channel = ticket_channel
 
-    @discord.ui.button(label="Prendre en charge", style=discord.ButtonStyle.success, custom_id="take_ticket")
+    @discord.ui.button(label="Prendre en charge", style=discord.ButtonStyle.success)
     async def take_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.ticket_channel.send(f"✅ {interaction.user.mention} a pris en charge ce ticket.")
         await interaction.response.defer()
 
-    @discord.ui.button(label="Mettre en attente", style=discord.ButtonStyle.danger, custom_id="hold_ticket")
+    @discord.ui.button(label="Mettre en attente", style=discord.ButtonStyle.danger)
     async def hold_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.ticket_channel.send(f"⏳ {interaction.user.mention} a mis ce ticket en attente.")
         await interaction.response.defer()
 
-    @discord.ui.button(label="Fermer le ticket", style=discord.ButtonStyle.secondary, custom_id="close_ticket")
+    @discord.ui.button(label="Fermer le ticket", style=discord.ButtonStyle.secondary)
     async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.ticket_channel.send(f"❌ {interaction.user.mention} a fermé ce ticket.")
         await interaction.response.defer()
         await self.ticket_channel.delete(reason=f"Ticket fermé par {interaction.user}")
 
-async def send_keep_alive_message():
-    """Envoie un MP toutes les 3 minutes pour garder le bot actif."""
-    await bot.wait_until_ready()
-    user = await bot.fetch_user(USER_ID)
-
-    while not bot.is_closed():
-        try:
-            await user.send("🔄 Ping ! Ceci est un message automatique pour garder le bot actif.")
-            print("✅ Message de keep-alive envoyé.")
-        except Exception as e:
-            print(f"⚠️ Impossible d'envoyer un message à {USER_ID}: {e}")
-
-        await asyncio.sleep(180)
 
 @bot.event
 async def on_ready():
     print(f"✅ {bot.user.name} est connecté et surveille les tickets en temps réel !")
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="les tickets de Racer83"))
-    
-    bot.loop.create_task(send_keep_alive_message())
 
-async def update_ticket_log(ticket_channel, author, message_content):
-    log_channel = bot.get_channel(CHANNEL_ID)
-    if not log_channel:
-        return
 
-    ticket_id = ticket_channel.id
-    message_entry = f"**{author}:** {message_content}"
+@bot.slash_command(name="mute", description="Rendre un membre muet")
+async def mute(ctx, member: discord.Member, reason: str = "Aucune raison spécifiée"):
+    await member.edit(mute=True)
+    await ctx.respond(f"🔇 {member.mention} a été rendu muet. Raison : {reason}")
 
-    if ticket_id in ticket_messages:
-        msg_id, messages_list = ticket_messages[ticket_id]
-        messages_list.append(message_entry)
-        if len(messages_list) > 10:
-            messages_list.pop(0)
 
-        embed = discord.Embed(
-            title=f"📩 Suivi du ticket {ticket_channel.name}",
-            description="\n".join(messages_list),
-            color=discord.Color.blue()
-        )
-        embed.set_footer(text=f"Salon: {ticket_channel.name} | ID: {ticket_id}")
+@bot.slash_command(name="unmute", description="Rendre la parole à un membre")
+async def unmute(ctx, member: discord.Member):
+    await member.edit(mute=False)
+    await ctx.respond(f"🔊 {member.mention} peut maintenant parler à nouveau.")
 
-        view = TicketView(ticket_channel)
-        view.add_item(discord.ui.Button(label="Aller au ticket", style=discord.ButtonStyle.link, url=ticket_channel.jump_url))
 
-        try:
-            msg = await log_channel.fetch_message(msg_id)
-            await msg.edit(embed=embed, view=view)
-        except discord.NotFound:
-            new_msg = await log_channel.send(embed=embed, view=view)
-            ticket_messages[ticket_id] = (new_msg.id, messages_list)
-    else:
-        embed = discord.Embed(
-            title=f"📩 Suivi du ticket {ticket_channel.name}",
-            description=message_entry,
-            color=discord.Color.blue()
-        )
-        embed.set_footer(text=f"Salon: {ticket_channel.name} | ID: {ticket_id}")
+@bot.slash_command(name="warn", description="Avertir un membre")
+async def warn(ctx, member: discord.Member, *, reason: str = "Aucune raison spécifiée"):
+    await ctx.respond(f"⚠️ {member.mention} a été averti. Raison : {reason}")
 
-        view = TicketView(ticket_channel)
-        view.add_item(discord.ui.Button(label="Aller au ticket", style=discord.ButtonStyle.link, url=ticket_channel.jump_url))
 
-        new_msg = await log_channel.send(embed=embed, view=view)
-        ticket_messages[ticket_id] = (new_msg.id, [message_entry])
+@bot.slash_command(name="slowmode", description="Définir un slowmode sur un salon")
+async def slowmode(ctx, seconds: int):
+    await ctx.channel.edit(slowmode_delay=seconds)
+    await ctx.respond(f"🐢 Slowmode défini sur {seconds} secondes.")
 
-@bot.event
-async def on_message(message):
-    if message.author.bot:
-        return
 
-    if message.channel.category and message.channel.category.id == CATEGORY_ID:
-        await update_ticket_log(message.channel, message.author, message.content)
+@bot.slash_command(name="lock", description="Verrouiller un salon")
+async def lock(ctx):
+    await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=False)
+    await ctx.respond("🔒 Ce salon a été verrouillé.")
 
-@bot.event
-async def on_guild_channel_create(channel):
-    if channel.category and channel.category.id == CATEGORY_ID:
-        log_channel = bot.get_channel(CHANNEL_ID)
-        if log_channel:
-            embed = discord.Embed(
-                title="🆕 Nouveau ticket ouvert",
-                description=f"**Nom du ticket:** {channel.name}",
-                color=discord.Color.green()
-            )
-            embed.set_footer(text=f"ID du salon: {channel.id}")
 
-            view = TicketView(channel)
-            view.add_item(discord.ui.Button(label="Aller au ticket", style=discord.ButtonStyle.link, url=f"https://discord.com/channels/{channel.guild.id}/{channel.id}"))
+@bot.slash_command(name="unlock", description="Déverrouiller un salon")
+async def unlock(ctx):
+    await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=True)
+    await ctx.respond("🔓 Ce salon a été déverrouillé.")
 
-            msg = await log_channel.send(embed=embed, view=view)
-            ticket_messages[channel.id] = (msg.id, [])
+
+@bot.slash_command(name="nick", description="Changer le pseudo d'un membre")
+async def nick(ctx, member: discord.Member, *, nickname: str):
+    await member.edit(nick=nickname)
+    await ctx.respond(f"📝 Le pseudo de {member.mention} a été changé en {nickname}.")
+
+
+@bot.slash_command(name="purge", description="Supprimer un grand nombre de messages")
+async def purge(ctx, amount: int):
+    await ctx.channel.purge(limit=amount + 1)
+    await ctx.respond(f"🧹 {amount} messages supprimés.", ephemeral=True)
+
 
 bot.run(TOKEN)
